@@ -18,3 +18,4 @@ keywords = ["schedule_recv", "timer"]
 
 [dependencies]
 lazy_static = "^0.2"
+crossbeam-channel = "0.4.0"

@@ -1,11 +1,10 @@
-
+use crossbeam_channel::{unbounded as channel, Receiver, Sender};
+use std::cmp::Ordering;
 use std::collections::BinaryHeap;
+use std::sync::Arc;
 use std::sync::{Condvar, Mutex};
 use std::thread;
-use std::sync::{Arc};
-use std::sync::mpsc::{Sender, Receiver, channel};
-use std::cmp::{Ordering};
-use std::time::{Instant, Duration};
+use std::time::{Duration, Instant};
 
 struct ScheduledEvent {
     when: Instant,
@@ -45,7 +44,7 @@ struct ScheduleWorker {
 
 impl ScheduleWorker {
     fn new(trigger: Arc<Condvar>, request_source: Receiver<ScheduledEvent>) -> ScheduleWorker {
-        ScheduleWorker{
+        ScheduleWorker {
             trigger: trigger,
             request_source: request_source,
             schedule: BinaryHeap::new(),
@@ -68,9 +67,9 @@ impl ScheduleWorker {
 
     fn fire_event(&mut self) {
         if let Some(evt) = self.schedule.pop() {
-            if evt.completion_sink.send( () ).is_ok() {
+            if evt.completion_sink.send(()).is_ok() {
                 if let Some(period) = evt.period {
-                    self.schedule.push(ScheduledEvent{
+                    self.schedule.push(ScheduledEvent {
                         when: evt.when + period,
                         period: evt.period,
                         completion_sink: evt.completion_sink,
@@ -92,7 +91,7 @@ impl ScheduleWorker {
     }
 
     fn run(&mut self) {
-        let m = Mutex::new( () );
+        let m = Mutex::new(());
         let mut g = m.lock().unwrap(); // The mutex isn't poisoned, since we just made it
 
         loop {
@@ -117,17 +116,17 @@ impl ScheduleWorker {
 }
 
 lazy_static! {
-    static ref SCHEDULER_INTERFACE : Mutex<SchedulingInterface> = {
+    static ref SCHEDULER_INTERFACE: Mutex<SchedulingInterface> = {
         let (sender, receiver) = channel();
         let trigger = Arc::new(Condvar::new());
         let trigger2 = trigger.clone();
-        thread::spawn(move|| {
+        thread::spawn(move || {
             ScheduleWorker::new(trigger2, receiver).run();
         });
 
         let interface = SchedulingInterface {
             trigger: trigger,
-            adder: sender
+            adder: sender,
         };
 
         Mutex::new(interface)
@@ -137,12 +136,17 @@ lazy_static! {
 fn add_request(duration: Duration, period: Option<Duration>) -> Receiver<()> {
     let (sender, receiver) = channel();
 
-    let interface = SCHEDULER_INTERFACE.lock().expect("Failed to acquire the global scheduling worker");
-    interface.adder.send(ScheduledEvent {
-        when: Instant::now() + duration,
-        completion_sink: sender,
-        period: period
-    }).expect("Failed to send a request to the global scheduling worker");
+    let interface = SCHEDULER_INTERFACE
+        .lock()
+        .expect("Failed to acquire the global scheduling worker");
+    interface
+        .adder
+        .send(ScheduledEvent {
+            when: Instant::now() + duration,
+            completion_sink: sender,
+            period: period,
+        })
+        .expect("Failed to send a request to the global scheduling worker");
 
     interface.trigger.notify_one();
 

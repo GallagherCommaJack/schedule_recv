@@ -38,11 +38,13 @@
 //! # }
 //! ```
 
-
-#[macro_use] extern crate lazy_static;
+#[macro_use]
+extern crate lazy_static;
+extern crate crossbeam_channel;
 
 mod scheduler;
 
-#[cfg(test)] mod test;
+#[cfg(test)]
+mod test;
 
-pub use scheduler::{oneshot_ms, periodic_ms, oneshot, periodic, periodic_after};
+pub use scheduler::{oneshot, oneshot_ms, periodic, periodic_after, periodic_ms};
